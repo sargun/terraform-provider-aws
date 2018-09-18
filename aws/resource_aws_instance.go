@@ -479,10 +479,13 @@ func resourceAwsInstance() *schema.Resource {
 						"cpu_credits": {
 							Type:     schema.TypeString,
 							Optional: true,
-							Default:  "standard",
 							DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-								if strings.HasPrefix(d.Get("instance_type").(string), "t3") &&
-									old == "unlimited" && new == "standard" {
+								if new != "" {
+									return false
+								}
+								if strings.HasPrefix(d.Get("instance_type").(string), "t3") && old == "unlimited" {
+									return true
+								} else if old == "standard" {
 									return true
 								}
 								return false
@@ -1755,8 +1758,13 @@ func buildAwsInstanceOpts(
 		InstanceType:          aws.String(instanceType),
 	}
 
-	// Set default cpu_credits as Unlimited for T3 instance type
-	if strings.HasPrefix(instanceType, "t3") {
+	// Defaults for unconfigured T2/T3 instance types
+	// e.g. when removing the credit_specification configuration
+	if strings.HasPrefix(instanceType, "t2") {
+		opts.CreditSpecification = &ec2.CreditSpecificationRequest{
+			CpuCredits: aws.String("standard"),
+		}
+	} else if strings.HasPrefix(instanceType, "t3") {
 		opts.CreditSpecification = &ec2.CreditSpecificationRequest{
 			CpuCredits: aws.String("unlimited"),
 		}
